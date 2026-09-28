@@ -53,6 +53,7 @@ LEXICON = {
 SPOKEN_FIX = {
     "一行": "一航", "几行": "几航", "的行": "的航", "这行": "这航", "那行": "那航",
     "每行": "每航", "新行": "新航", "行号": "航号", "命令行": "命令航",
+    "add-chapter-3": "add chapter three", "chapter3.md": "chapter three 点 md",
 }
 
 
