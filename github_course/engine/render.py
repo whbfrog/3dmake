@@ -49,6 +49,13 @@ LEXICON = {
 }
 
 
+# Polyphones ZipVoice misreads: swap in a homophone for the spoken text only.
+SPOKEN_FIX = {
+    "一行": "一航", "几行": "几航", "的行": "的航", "这行": "这航", "那行": "那航",
+    "每行": "每航", "新行": "新航", "行号": "航号", "命令行": "命令航",
+}
+
+
 class Kokoro:
     """Kokoro zh voice. Only used to synthesize ZipVoice's reference clip, so
     the narrator timbre is synthetic rather than cloned from a real person."""
@@ -107,6 +114,8 @@ class TTS:
 
     def __call__(self, text):
         text = text.replace("……", "，").replace("《", "").replace("》", "")
+        for k, v in SPOKEN_FIX.items():
+            text = text.replace(k, v)
         key = hashlib.sha1(f"zv|{VOICE}|{SPEED}|{text}".encode()).hexdigest()[:16]
         path = CACHE / "tts" / f"{key}.wav"
         if not path.exists():
@@ -129,7 +138,7 @@ class TTS:
 
 
 def han(s):
-    s = re.sub("[它她]", "他", s).replace("哪", "那")
+    s = re.sub("[它她]", "他", s).replace("哪", "那").replace("航", "行")
     return "".join(re.findall(r"[\u4e00-\u9fff]", s))
 
 
@@ -161,7 +170,7 @@ def load_episode(path):
 
 
 def page_html(ep):
-    css = (ENGINE / "base.css").read_text() + (ENGINE / "gh.css").read_text()
+    css = "".join((ENGINE / f).read_text() for f in ("base.css", "gh.css", "kit.css"))
     css += getattr(ep, "CSS", "")
     js = (ENGINE / "runtime.js").read_text()
     cursor = ('<svg id="cursor" viewBox="0 0 24 24"><path d="M3 2l7.5 19 2.6-7.9L21 10.5z" '
