@@ -57,7 +57,7 @@ await Promise.all(Array.from({ length: WORKERS }, async (_, w) => {
   const { browser, page } = await openPage();
   const seg = path.join(tmp, `seg${w}.mp4`);
   const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-',
-    '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', seg], { stdio: ['pipe', 'inherit', 'inherit'] });
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-pix_fmt', 'yuv420p', seg], { stdio: ['pipe', 'inherit', 'inherit'] });
   for (let i = from; i < to; i++) {
     await page.evaluate(t => window.renderAt(t), i / FPS);
     const buf = await page.screenshot({ type: 'jpeg', quality: 94 });

@@ -672,11 +672,11 @@ window.build = async function () {
   });
   const oi = SCENES.length - 1;
   titleCard(oi * SP, {}, sceneStart[oi], {
-    x: -15, z: -5, ul: 15, lines: [
-      { text: '筑路 · 管路 · 守平安', font: 'XingShu', px: 170, h: 2.8, y: 5.6, dur: 2.2, at: sceneStart[oi] + 0.6 },
-      { text: 'Building roads · Running roads · Safeguarding lives', font: 'Hand', px: 110, h: 1.2, y: 4.4, bold: true, dur: 1.8, at: sceneStart[oi] + 2.8 },
-      { text: '路在脚下，未完待续', font: 'XingShu', px: 150, h: 1.9, y: 2.4, dur: 1.6, at: sceneStart[oi] + 5.0 },
-      { text: 'The road goes on — to be continued.', font: 'Hand', px: 100, h: 1.05, y: 1.2, bold: true, dur: 1.4, at: sceneStart[oi] + 6.6 },
+    x: -12.5, z: -5, ul: 13, lines: [
+      { text: '筑路 · 管路 · 守平安', font: 'XingShu', px: 170, h: 2.4, y: 5.0, dur: 2.2, at: sceneStart[oi] + 0.6 },
+      { text: 'Building roads · Running roads · Safeguarding lives', font: 'Hand', px: 110, h: 1.0, y: 3.95, bold: true, dur: 1.8, at: sceneStart[oi] + 2.8 },
+      { text: '路在脚下，未完待续', font: 'XingShu', px: 150, h: 1.7, y: 2.3, dur: 1.6, at: sceneStart[oi] + 5.0 },
+      { text: 'The road goes on — to be continued.', font: 'Hand', px: 100, h: 0.95, y: 1.25, bold: true, dur: 1.4, at: sceneStart[oi] + 6.6 },
     ],
   });
   total = t0;
