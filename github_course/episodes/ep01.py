@@ -78,7 +78,7 @@ CSS = """
 
 S_TITLE = """
 <div class="center">
-  <div class="tag t-green" data-s="1" style="font-size:34px;padding:10px 30px">零基础 · 共 10 集 · 每集约 3 分钟</div>
+  <div class="tag t-green" data-s="1" style="font-size:34px;padding:10px 30px">零基础 · 共 10 集</div>
   <h1 class="title" data-s="1" style="font-size:124px;margin:40px 0 30px">GitHub 零基础入门</h1>
   <div data-s="2" style="font-size:58px;font-weight:700;color:var(--muted)">第 1 集 · GitHub 到底是什么？</div>
 </div>"""
