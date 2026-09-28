@@ -31,46 +31,115 @@ MODEL_DIR = Path("/opt/tts")
 FPS = 30
 SR = 24000
 VOICE = "zf_001"
-SPEED = 1.05
+SPEED = 1.0
+ZIPVOICE_DIR = MODEL_DIR / "sherpa-onnx-zipvoice-distill-int8-zh-en-emilia"
+PROMPT_TEXT = "大家好，今天我们一起来学习一些新的知识，希望你能喜欢。"
+TRIES = 4
+MAX_CER = 0.06
 GAP = 0.3        # pause between sentences
 STEP_LEAD = 0.2  # silence before a step's first sentence
 STEP_TAIL = 0.3
 SCENE_TAIL = 0.5
 
 
-# English words the G2P gets wrong, spelled in IPA.
+# English words Kokoro's G2P gets wrong, spelled in IPA.
 LEXICON = {
     "GitHub": "ɡˈɪthʌb",
     "README": "ɹˈid mˌi",
 }
 
 
-class TTS:
-    def __init__(self):
-        self._k = None
+class Kokoro:
+    """Kokoro zh voice. Only used to synthesize ZipVoice's reference clip, so
+    the narrator timbre is synthetic rather than cloned from a real person."""
 
-    def _load(self):
-        from kokoro_onnx import Kokoro
+    def __init__(self):
+        from kokoro_onnx import Kokoro as K
         from misaki import en, zh
         e = en.G2P(trf=False, british=False, fallback=None)
         self.g2p = zh.ZHG2P(version="1.1", en_callable=lambda t: LEXICON.get(t) or e(t)[0])
-        self._k = Kokoro(str(MODEL_DIR / "kokoro-v1.1-zh.onnx"), str(MODEL_DIR / "voices-v1.1-zh.bin"))
+        self.k = K(str(MODEL_DIR / "kokoro-v1.1-zh.onnx"), str(MODEL_DIR / "voices-v1.1-zh.bin"))
+
+    def __call__(self, text, voice, speed=1.0):
+        ph, _ = self.g2p(text)
+        audio, sr = self.k.create(ph, voice=voice, speed=speed, is_phonemes=True)
+        assert sr == SR
+        return audio
+
+
+class TTS:
+    """ZipVoice zero-shot TTS, every sentence checked by ASR and regenerated
+    (up to TRIES times) when the transcript drifts from the script."""
+
+    def __init__(self):
+        self._zv = None
+
+    def _load(self):
+        import sherpa_onnx
+        d = str(ZIPVOICE_DIR) + "/"
+        self._zv = sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(
+            zipvoice=sherpa_onnx.OfflineTtsZipvoiceModelConfig(
+                tokens=d + "tokens.txt", encoder=d + "encoder.int8.onnx", decoder=d + "decoder.int8.onnx",
+                data_dir=d + "espeak-ng-data", lexicon=d + "lexicon.txt", vocoder=str(MODEL_DIR / "vocos_24khz.onnx")),
+            num_threads=4)))
+        a = MODEL_DIR / "sherpa-onnx-paraformer-zh-small-2024-03-09"
+        self._asr = sherpa_onnx.OfflineRecognizer.from_paraformer(
+            paraformer=str(a / "model.int8.onnx"), tokens=str(a / "tokens.txt"), num_threads=4)
+        prompt = CACHE / f"prompt_{VOICE}.wav"
+        if not prompt.exists():
+            prompt.parent.mkdir(parents=True, exist_ok=True)
+            sf.write(prompt, Kokoro()(PROMPT_TEXT, VOICE), SR)
+        self._prompt, _ = sf.read(prompt, dtype="float32")
+        self._gen = sherpa_onnx.GenerationConfig()
+        self._gen.reference_audio = self._prompt
+        self._gen.reference_sample_rate = SR
+        self._gen.reference_text = PROMPT_TEXT
+        self._gen.num_steps = 8
+        self._gen.speed = SPEED
+        self._gen.extra["min_char_in_sentence"] = "30"
+
+    def _cer(self, audio, text):
+        from scipy.signal import resample_poly
+        st = self._asr.create_stream()
+        st.accept_waveform(16000, resample_poly(audio, 2, 3).astype(np.float32))
+        self._asr.decode_stream(st)
+        return cer(han(text), han(st.result.text)), st.result.text
 
     def __call__(self, text):
         text = text.replace("……", "，").replace("《", "").replace("》", "")
-        lex = sorted(v for k, v in LEXICON.items() if k in text)
-        key = hashlib.sha1(f"{VOICE}|{SPEED}|{lex}|{text}".encode()).hexdigest()[:16]
+        key = hashlib.sha1(f"zv|{VOICE}|{SPEED}|{text}".encode()).hexdigest()[:16]
         path = CACHE / "tts" / f"{key}.wav"
         if not path.exists():
-            if self._k is None:
+            if self._zv is None:
                 self._load()
-            ph, _ = self.g2p(text)
-            audio, sr = self._k.create(ph, voice=VOICE, speed=SPEED, is_phonemes=True)
-            assert sr == SR
+            best = None
+            for i in range(TRIES):
+                a = np.array(self._zv.generate(text, self._gen).samples, dtype=np.float32)
+                err, heard = self._cer(a, text)
+                if best is None or err < best[0]:
+                    best = (err, a, heard)
+                if err <= MAX_CER:
+                    break
+            if best[0] > MAX_CER:
+                print(f"  ! TTS check {best[0]:.2f}: {text} -> {best[2]}", flush=True)
             path.parent.mkdir(parents=True, exist_ok=True)
-            sf.write(path, audio, SR)
+            sf.write(path, best[1], SR)
         audio, _ = sf.read(path, dtype="float32")
         return trim(audio)
+
+
+def han(s):
+    s = re.sub("[它她]", "他", s).replace("哪", "那")
+    return "".join(re.findall(r"[\u4e00-\u9fff]", s))
+
+
+def cer(ref, hyp):
+    d = list(range(len(hyp) + 1))
+    for i, r in enumerate(ref, 1):
+        prev, d[0] = d[0], i
+        for j, h in enumerate(hyp, 1):
+            prev, d[j] = d[j], min(d[j] + 1, d[j - 1] + 1, prev + (r != h))
+    return d[-1] / max(1, len(ref))
 
 
 def trim(a, thr=0.004):
