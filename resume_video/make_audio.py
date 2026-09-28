@@ -130,9 +130,18 @@ spec *= np.exp(-((np.log(fr + 1) - np.log(3800)) ** 2) / 0.35)
 scratch = np.fft.irfft(spec, N)
 scratch /= np.max(np.abs(scratch)) + 1e-9
 grain = 0.55 + 0.45 * np.abs(np.sin(2 * np.pi * np.cumsum(7 + 5 * rng.random(N) ) / SR))
-scratch *= env * grain * 0.045
+scratch *= env * grain * 0.045 * info.get("scratch", 1.0)
 L += scratch
 Rt += scratch * 0.9
+
+# 3D 版：物件从纸上跃起时的轻柔“呼”声（低通噪声，先强后弱）
+for tp in info.get("pops", []):
+    n = int(0.55 * SR)
+    tt = np.arange(n) / SR
+    w = np.fft.irfft(np.fft.rfft(rng.standard_normal(n)) * np.exp(-np.fft.rfftfreq(n, 1 / SR) / 900), n)
+    w = w / (np.max(np.abs(w)) + 1e-9) * np.sin(np.pi * np.minimum(1, tt / 0.55)) ** 2 * 0.05
+    put(w, tp, pan=0.0)
+    put(w * 0.8, tp + 0.01, pan=0.3)
 
 # 首尾淡入淡出 + 归一化
 t = np.arange(N) / SR
